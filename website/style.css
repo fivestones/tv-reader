@@ -1,0 +1,22 @@
+input[type="submit"] {
+    font-size: 70px;
+    background: lightblue;
+    border: none;
+    padding: 10px 20px;
+    width: 85%;
+    text-align: center;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .flat-btn {
+    -webkit-appearance: none; /*For Chrome*/
+    -moz-appearance: none;/*For Mozilla*/
+     appearance: none;
+     border-radius: 0;
+  }
+  
+  h2 {
+    margin: 25px 0 10px;
+    font-size: 20px;
+  }

@@ -1,0 +1,85 @@
+
+
+
+<!DOCTYPE html>
+<head>
+    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+</head>
+
+
+
+<input id="Right" class="flat-btn" type="submit" value="Right" /><br>
+<input id="Left" class="flat-btn" type="submit" value="Left" /><br>
+<input id="Shift" class="flat-btn" type="submit" value="Shift" />
+
+<script>
+    let connected = 0;
+
+    // var socket = io.connect('ws://localhost:55559');
+    let socket = new WebSocket("ws://192.168.86.203:55559");
+
+    socket.onopen = function(e) {
+        console.log("[open] Connection established");
+        connected = 1;
+        // console.log("Sending to server");
+        // socket.send("My name is John");
+    };
+    
+    document.querySelector('#Right').addEventListener('click', e => {
+        if (connected == 1) {
+            console.log("Sending to server");
+            console.log("Right")
+            socket.send('Right');
+        }
+    });
+
+    document.querySelector('#Left').addEventListener('click', e => {
+        if (connected == 1) {
+            console.log("Sending to server");
+            console.log("Left")
+            socket.send('Left');
+        }
+    });
+
+    document.querySelector('#Shift').addEventListener('click', e => {
+        if (connected == 1) {
+            console.log("Sending to server");
+            console.log("Shift")
+            socket.send('s');
+        }
+    });
+
+
+
+    // var net = require('net');
+
+    // var HOST = '127.0.0.1';
+    // var PORT = 55559;
+
+    // var client = new net.Socket();
+    // client.connect(PORT, HOST, function() {
+    //     console.log('CONNECTED TO: ' + HOST + ':' + PORT);
+    //     // Write a message to the socket as soon as the client is connected, the server will receive it as message from the client
+    //     client.write('Message from client');
+
+    // });
+
+    // // Add a 'data' event handler for the client socket
+    // // data is what the server sent to this socket
+    // client.on('data', function(data) {
+    //     console.log('DATA: ' + data);
+    //     // Close the client socket completely
+    //     client.destroy();
+    // });
+
+    // // Add a 'close' event handler for the client socket
+    // client.on('close', function() {
+    // console.log('Connection closed');
+    // });
+
+
+
+
+
+</script>
