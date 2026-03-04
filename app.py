@@ -1,5 +1,6 @@
 
 
+
 from tkinter import *
 from PIL import ImageTk, Image
 from timeit import default_timer as timer
@@ -9,8 +10,13 @@ import fitz
 import os
 from threading import Thread
 
-import smbclient.shutil
-import smbclient
+try:
+    import smbclient.shutil
+    import smbclient
+    HAS_SMB = True
+except ImportError:
+    HAS_SMB = False
+
 import os
 import threading
 import time
@@ -20,15 +26,38 @@ from pathlib import Path
 import asyncio
 import websockets
 import socket
+import http.server
+import functools
+import queue
+
+msg_queue = queue.Queue()
 
 
 
 ########################
 
+WEB_SERVER_PORT = 8080
+
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+def start_web_server():
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory="website")
+    server = http.server.HTTPServer(("0.0.0.0", WEB_SERVER_PORT), handler)
+    server.serve_forever()
+
+########################
+
 async def receive_socket_msg(websocket):
     async for message in websocket:
-        handle_messages(message)
-        # await websocket.send(message)
+        msg_queue.put(message)
 
 async def websocket_connect():
     async with websockets.serve(receive_socket_msg, "0.0.0.0", 55559):
@@ -38,7 +67,7 @@ async def websocket_connect():
 
 def websock_messages(): #listen for any incomming connections and process the messages
     asyncio.run(websocket_connect())
-    
+
     #the below is with sockets but not websockets
     # #at the moment this can use the pg-client.py app, run it, and type in the Right Left s ect messages to move the pages
     # server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,7 +75,7 @@ def websock_messages(): #listen for any incomming connections and process the me
     # server.listen(1)
     # server.setblocking(False)
 
-    
+
     # client = None
     # text = ""
     # running = True
@@ -97,7 +126,7 @@ def handle_messages(message):
         elif message == "2":
             #change back to showing 2 pages at a time
             pass
-        
+
         if currentLeftPage >= page_count:
             currentLeftPage -= page_count
         if currentLeftPage < 0:
@@ -108,12 +137,12 @@ def handle_messages(message):
             nextPage -= page_count
         if nextPage < 0:
             nextPage += page_count
-        
+
         update_images(leftImageNum=currentLeftPage, rightImageNum=nextPage)
     except AttributeError:
         print("there is no keysym key from the key pressed I guess")
     #I don't think we need both a keypress and a keyrelease event
-    
+
     #eventually this will need to respond to network requests instead of just keypresses
 
 
@@ -123,6 +152,15 @@ def handle_keypress(event):
         handle_messages(event.keysym)
     except AttributeError:
         print("Error: There is a no keysym key from the key press I guess")
+
+def check_msg_queue():
+    try:
+        while True:
+            message = msg_queue.get_nowait()
+            handle_messages(message)
+    except queue.Empty:
+        pass
+    window.after(50, check_msg_queue)
 
 def getProperPageNumber(number, numberToAdd):
     if number + numberToAdd >= page_count:
@@ -143,7 +181,7 @@ def get_next_images(currentLeftPage):
         if image_array[getProperPageNumber(currentLeftPage, 3)] == None:
             image_array[getProperPageNumber(currentLeftPage, 3)] = doc[getProperPageNumber(currentLeftPage, 3)].get_pixmap(matrix=matRight, alpha=False)
         print("got pages {} and {}".format(getProperPageNumber(currentLeftPage, 2), getProperPageNumber(currentLeftPage, 3)))
-    
+
     #get the previous 2 pages
     if image_array[getProperPageNumber(currentLeftPage, -2)] == None or image_array[getProperPageNumber(currentLeftPage, -1)] == None:
         matLeft, matRight, leftZoom = getImagesZoom(doc[getProperPageNumber(currentLeftPage, 2)].rect.width, doc[getProperPageNumber(currentLeftPage, 2)].rect.height, doc[getProperPageNumber(currentLeftPage, 3)].rect.width, doc[getProperPageNumber(currentLeftPage, 3)].rect.height)
@@ -154,7 +192,7 @@ def get_next_images(currentLeftPage):
             image_array[getProperPageNumber(currentLeftPage, -1)] = doc[getProperPageNumber(currentLeftPage, -1)].get_pixmap(matrix=matRight, alpha=False)
         print("got pages {} and {}".format(getProperPageNumber(currentLeftPage, -2), getProperPageNumber(currentLeftPage, -1)))
 
-    
+
 
 
 def update_images(leftImageNum, rightImageNum):
@@ -180,7 +218,7 @@ def update_images(leftImageNum, rightImageNum):
     t = threading.Thread(name='get_next_images', target=get_next_images, args=([currentLeftPage]))
     t.start()
 
-    
+
 
 def getImagePixmap(pdfPageNum, matrix):
     if image_array[pdfPageNum] == None:
@@ -266,13 +304,17 @@ def copy_file(source_path, destination_path):
 
 def obtainFile(serverFilePath):
     global doc
+    if not HAS_SMB:
+        print("Error: smbprotocol is not installed. Install it with: pip install smbprotocol")
+        exit(1)
+
     src = serverFilePath
     des = "downloads/" + serverFilePath[29:].replace('\\', '/') #get the part after \\server.local\tv-bookreader\, and change backslashes to forward slashes
-    
+
     #make the folders it needs to go in if they don't exist (these folders match what is on the server to prevent book collisions)
     if not os.path.exists(Path(des).parent):
         Path(des).parent.mkdir(parents=True, exist_ok=True)
-    
+
     #register the smb session so we can connect to the server to get the file
     smbclient.register_session("server.local", username="tv-bookreader", password="password")
 
@@ -283,16 +325,61 @@ def obtainFile(serverFilePath):
 
         copy_progress(src, des, smbclient.stat(src).st_size) #show progress
 
-    #when the file is done being copied, open it with doc=fitz.open(filepath)
-    global doc
     doc=fitz.open(des)
 
 
 doc=""
-#filepath = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
-filepath = input(r"Enter the remote file path (e.g., \\server.local\tv-bookreader\test.mobi" + "\n")
-#src = r"\\server.local\tv-bookreader\test.mobi"
-obtainFile(filepath)
+
+#start listening for a websocket connection and then process any incoming messages
+t = threading.Thread(name='websocket', target=websock_messages, daemon=True)
+t.start()
+
+#start the web server for the remote control UI
+t2 = threading.Thread(name='webserver', target=start_web_server, daemon=True)
+t2.start()
+
+hostname = socket.gethostname().split('.')[0]
+local_ip = get_local_ip()
+print(f"\nRemote control available at:")
+print(f"  http://{hostname}.local:{WEB_SERVER_PORT}")
+print(f"  http://{local_ip}:{WEB_SERVER_PORT}")
+
+# List local files in downloads/ if any exist
+local_files = []
+if os.path.exists("downloads"):
+    for root, dirs, files in os.walk("downloads"):
+        for f in files:
+            if f.lower().endswith(('.pdf', '.mobi', '.epub')) and not f.startswith('.'):
+                local_files.append(os.path.join(root, f))
+
+if local_files or HAS_SMB:
+    print("\nHow would you like to open a book?\n")
+    if local_files:
+        print("Local books:")
+        for i, f in enumerate(local_files, 1):
+            print(f"  {i}. {f}")
+        print()
+    if HAS_SMB:
+        print("  r. Enter a remote SMB path")
+    print("  f. Browse for a local file")
+    print()
+    choice = input("Enter choice: ").strip()
+
+    if choice == 'f':
+        filepath = input("Enter the local file path: ").strip()
+        doc = fitz.open(filepath)
+    elif choice == 'r' and HAS_SMB:
+        filepath = input(r"Enter the remote file path (e.g., \\server.local\tv-bookreader\test.mobi): ")
+        obtainFile(filepath)
+    elif choice.isdigit() and 1 <= int(choice) <= len(local_files):
+        doc = fitz.open(local_files[int(choice) - 1])
+    else:
+        print("Invalid choice.")
+        exit(1)
+else:
+    # No local files and no SMB — just ask for a local path
+    filepath = input("Enter the local file path to a PDF or MOBI: ").strip()
+    doc = fitz.open(filepath)
 
 page_count = doc.page_count
 
@@ -323,11 +410,6 @@ window.title("TV-Reader")
 
 # Bind keypress event to handle_keypress()
 window.bind("<Key>", handle_keypress)
-
-#start listening for a websocket connection and then process any incoming messages
-t = threading.Thread(name='websocket', target=websock_messages)
-t.start()
-
 
 ############Figure out window and image sizes, and zoom them appropriately for full screen
 ######This works for two pages, but should also set it to be able to display only one, as some books have a landscape page in the pdf that is meant to be the whole visible page (left and right sides in one image in the pdf). This should be connected to a keypress to change from 2 pages to 1 page visible
@@ -362,6 +444,9 @@ canvas.update()
 #todo: get the next images ready so they load faster:
 t = threading.Thread(name='get_next_images', target=get_next_images, args=([currentLeftPage]))
 t.start()
+
+# Poll for websocket messages on the main thread
+check_msg_queue()
 
 window.mainloop()
 

@@ -5,3 +5,11 @@ __pycache__/
 downloads/
 pageImages/
 .vscode/
+
+# Books and test media files
+*.pdf
+*.mobi
+*.epub
+*.jpg
+*.ppm
+fifteenk.html

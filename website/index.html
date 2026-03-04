@@ -1,6 +1,7 @@
 
 
 
+
 <!DOCTYPE html>
 <head>
     <link rel="stylesheet" href="style.css">
@@ -16,8 +17,8 @@
 <script>
     let connected = 0;
 
-    // var socket = io.connect('ws://localhost:55559');
-    let socket = new WebSocket("ws://192.168.86.203:55559");
+    // Connect to the websocket on the same host that served this page
+    let socket = new WebSocket("ws://" + window.location.hostname + ":55559");
 
     socket.onopen = function(e) {
         console.log("[open] Connection established");
@@ -25,7 +26,7 @@
         // console.log("Sending to server");
         // socket.send("My name is John");
     };
-    
+
     document.querySelector('#Right').addEventListener('click', e => {
         if (connected == 1) {
             console.log("Sending to server");
@@ -77,7 +78,6 @@
     // client.on('close', function() {
     // console.log('Connection closed');
     // });
-
 
 
 
