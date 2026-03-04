@@ -2,7 +2,7 @@
 
 Displays PDF/MOBI books fullscreen on a TV (or any screen) as a two-page spread, like an open book. You control it from your phone via a simple web remote.
 
-Built this to read picture books on the TV with my kids. Intended to run on a Raspberry Pi connected to a TV.
+Built this to read picture books on the TV with my kids back in 2023. Spruced it up a bit with claude in Feb 2026 when I came across the old code. Intended to run on a Raspberry Pi connected to a TV. Works with PDFs, MOBIs, maybe epubs(?). 
 
 ## How it works
 
