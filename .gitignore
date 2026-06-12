@@ -4,6 +4,7 @@ __pycache__/
 .DS_Store
 downloads/
 pageImages/
+cache/
 .vscode/
 
 # Books and test media files
