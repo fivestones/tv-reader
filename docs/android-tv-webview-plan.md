@@ -113,3 +113,12 @@ Implemented in commits:
 The final docs and verification commit updates README/setup guidance and records
 the known local limitation: this workspace does not currently have Gradle or an
 Android SDK available for a full Android build.
+
+Follow-up implementation installed the Android toolchain, generated a Gradle
+wrapper, added `android-tv/build-tv.sh`, and verified:
+
+- `./build-tv.sh :app:assembleDebug`
+- `./build-tv.sh :app:lintDebug`
+
+The debug APK is produced at
+`android-tv/app/build/outputs/apk/debug/app-debug.apk`.

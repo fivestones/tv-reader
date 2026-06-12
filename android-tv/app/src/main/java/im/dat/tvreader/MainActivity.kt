@@ -24,6 +24,7 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var errorView: TextView
 
+    @Suppress("DEPRECATION")
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

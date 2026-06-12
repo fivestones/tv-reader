@@ -7,6 +7,12 @@ pageImages/
 cache/
 .vscode/
 
+# Android / Gradle build output
+android-tv/.gradle/
+android-tv/build/
+android-tv/app/build/
+android-tv/local.properties
+
 # Books and test media files
 *.pdf
 *.mobi

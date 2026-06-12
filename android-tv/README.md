@@ -9,17 +9,22 @@ https://reader.example.com/tv
 
 ## Build
 
-Open this `android-tv/` directory in Android Studio, or build from this
-directory with Gradle if your machine has Android Gradle tooling installed:
+This machine has the required CLI tooling installed with Homebrew:
+
+- JDK 17: `/opt/homebrew/opt/openjdk@17`
+- Android SDK command-line tools: `/opt/homebrew/share/android-commandlinetools`
+- Gradle wrapper: `./gradlew`
+
+Build from this directory with the helper script:
 
 ```
-gradle :app:assembleDebug
+./build-tv.sh
 ```
 
-Install a debug build to a connected Android TV device:
+The debug APK is written to:
 
 ```
-gradle :app:installDebug
+app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ## Local Server Override
@@ -27,11 +32,23 @@ gradle :app:installDebug
 For LAN testing, override the URL at build time:
 
 ```
-gradle :app:installDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+./build-tv.sh :app:assembleDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+```
+
+Install a debug build to a connected Android TV device:
+
+```
+./build-tv.sh :app:installDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
 ```
 
 Debug builds allow cleartext HTTP so local LAN URLs work. Release builds should
 use HTTPS, which matches the production `https://reader.example.com/tv` default.
+
+Run lint:
+
+```
+./build-tv.sh :app:lintDebug
+```
 
 ## Controls
 

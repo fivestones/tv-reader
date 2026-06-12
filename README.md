@@ -56,10 +56,16 @@ server {
 The Android TV app defaults to `https://reader.example.com/tv`. For local debug builds, override it with:
 
 ```
-gradle :app:installDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+./build-tv.sh
 ```
 
-Run that from `android-tv/`, replacing the IP with your LAN server. Debug builds allow cleartext HTTP for local testing; release builds are intended for HTTPS.
+For local debug builds, override the URL with:
+
+```
+./build-tv.sh :app:installDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+```
+
+Replace the IP with your LAN server. Debug builds allow cleartext HTTP for local testing; release builds are intended for HTTPS.
 
 ## How it works
 
