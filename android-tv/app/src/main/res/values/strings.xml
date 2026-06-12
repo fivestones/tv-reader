@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Reader</string>
+    <string name="load_error">The reader page could not be loaded.</string>
+    <string name="error_template">Could not load %1$s\n\n%2$s\n\nPress Select to retry.</string>
+</resources>
