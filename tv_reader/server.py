@@ -33,9 +33,13 @@ def get_local_ip() -> str:
         return "127.0.0.1"
 
 
+STATIC_DIR = Path(__file__).resolve().parent.parent / "web"
+
+
 class ReaderRuntime:
-    def __init__(self, session: ReaderSession) -> None:
+    def __init__(self, session: ReaderSession, config: dict[str, Any]) -> None:
         self.session = session
+        self.config = config
         self.clients: set[Any] = set()
         self.loop: asyncio.AbstractEventLoop | None = None
 
@@ -121,17 +125,23 @@ class ReaderHTTPRequestHandler(BaseHTTPRequestHandler):
                 width, height = parse_size(query.get("size", [None])[0])
                 self.send_json({"state": self.server.runtime.session.state(width, height)})
                 return
+            if parsed.path == "/api/config":
+                self.send_json({"config": self.server.runtime.config})
+                return
             if parsed.path.startswith("/spread/"):
                 self.send_spread(parsed.path)
                 return
-            if parsed.path in {"/", "/tv", "/remote"}:
-                self.send_json(
-                    {
-                        "message": "Browser UI has not been installed yet.",
-                        "state": self.server.runtime.session.state(),
-                    },
-                    status=HTTPStatus.NOT_IMPLEMENTED,
-                )
+            if parsed.path == "/":
+                self.send_redirect("/tv")
+                return
+            if parsed.path == "/tv":
+                self.send_static_file(STATIC_DIR / "tv.html")
+                return
+            if parsed.path == "/remote":
+                self.send_static_file(STATIC_DIR / "remote.html")
+                return
+            if parsed.path.startswith("/assets/"):
+                self.send_static_file(STATIC_DIR / parsed.path.removeprefix("/assets/"))
                 return
             self.send_error(HTTPStatus.NOT_FOUND)
         except Exception as exc:
@@ -185,6 +195,31 @@ class ReaderHTTPRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def send_static_file(self, path: Path) -> None:
+        resolved = path.resolve()
+        static_root = STATIC_DIR.resolve()
+        if not resolved.is_file() or static_root not in resolved.parents:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        content_type = {
+            ".html": "text/html; charset=utf-8",
+            ".css": "text/css; charset=utf-8",
+            ".js": "application/javascript; charset=utf-8",
+            ".svg": "image/svg+xml",
+        }.get(resolved.suffix.lower(), "application/octet-stream")
+        body = resolved.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_redirect(self, location: str) -> None:
+        self.send_response(HTTPStatus.FOUND)
+        self.send_header("Location", location)
+        self.end_headers()
 
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
@@ -244,13 +279,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", default="cache/spreads", help="Rendered spread cache directory.")
     parser.add_argument("--width", type=int, default=1920, help="Default rendered spread width.")
     parser.add_argument("--height", type=int, default=1080, help="Default rendered spread height.")
+    parser.add_argument(
+        "--public-ws-url",
+        help="Public websocket URL. Defaults to wss://host/ws on HTTPS or ws://host:ws-port locally.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     session = build_session(args)
-    runtime = ReaderRuntime(session)
+    runtime = ReaderRuntime(
+        session,
+        {
+            "render_size": f"{args.width}x{args.height}",
+            "ws_port": args.ws_port,
+            "public_ws_url": args.public_ws_url,
+        },
+    )
     start_http_server(runtime, args.host, args.http_port)
 
     ip = get_local_ip()

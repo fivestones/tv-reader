@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TV Reader</title>
+    <link rel="stylesheet" href="/assets/reader.css?v=2">
+  </head>
+  <body class="tv-page">
+    <main class="stage" aria-live="polite">
+      <img id="spread-a" class="spread visible" alt="">
+      <img id="spread-b" class="spread" alt="">
+      <section id="empty-state" class="tv-status">
+        <p class="eyebrow">TV Reader</p>
+        <h1>Open a book from your phone.</h1>
+        <p>Visit <strong>/remote</strong> on this server to choose a book and turn pages.</p>
+      </section>
+      <aside id="hud" class="hud" aria-hidden="true">
+        <span id="hud-title">No book</span>
+        <span id="hud-pages"></span>
+      </aside>
+      <aside id="connection" class="connection">Connecting...</aside>
+    </main>
+    <script src="/assets/reader-client.js?v=2"></script>
+    <script src="/assets/tv.js?v=2"></script>
+  </body>
+</html>

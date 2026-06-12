@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TV Reader Remote</title>
+    <link rel="stylesheet" href="/assets/reader.css?v=2">
+  </head>
+  <body class="remote-page">
+    <main class="remote-shell">
+      <header class="remote-header">
+        <p class="eyebrow">TV Reader</p>
+        <h1>Story remote</h1>
+        <p id="connection" class="remote-connection">Connecting...</p>
+      </header>
+
+      <section class="now-reading" aria-live="polite">
+        <span class="label">Now reading</span>
+        <strong id="book-title">No book open</strong>
+        <span id="page-label">Open a book below.</span>
+      </section>
+
+      <section class="remote-pad" aria-label="Reader controls">
+        <button id="left-button" class="control secondary" type="button">Left</button>
+        <button id="right-button" class="control primary" type="button">Right</button>
+        <button id="shift-button" class="control" type="button">Shift spread</button>
+        <button id="beginning-button" class="control" type="button">Beginning</button>
+      </section>
+
+      <section class="library-panel">
+        <div class="library-heading">
+          <div>
+            <span class="label">Library</span>
+            <h2>Choose a book</h2>
+          </div>
+          <button id="refresh-books" class="small-button" type="button">Refresh</button>
+        </div>
+        <input id="book-filter" class="book-filter" type="search" placeholder="Filter books">
+        <div id="book-list" class="book-list" aria-live="polite"></div>
+      </section>
+    </main>
+    <script src="/assets/reader-client.js?v=2"></script>
+    <script src="/assets/remote.js?v=2"></script>
+  </body>
+</html>
