@@ -4,16 +4,83 @@ Displays PDF/MOBI books fullscreen on a TV (or any screen) as a two-page spread,
 
 Built this to read picture books on the TV with my kids back in 2023. Spruced it up a bit with claude in Feb 2026 when I came across the old code. Intended to run on a Raspberry Pi connected to a TV. Works with PDFs, MOBIs, maybe epubs(?). 
 
+## Android TV / web mode
+
+The Android TV path is now browser-first:
+
+- Run the Python web reader on a LAN server.
+- Open `https://reader.example.com/tv` on the TV, or use the Android TV WebView wrapper in `android-tv/`.
+- Open `https://reader.example.com/remote` on a phone to choose books and turn pages.
+- The server renders two-page spreads with PyMuPDF, caches them in `cache/spreads/`, and preloads nearby spreads for fluid page turns.
+
+Run the web reader locally:
+
+```
+python3 web_reader.py --host 0.0.0.0 --http-port 8080 --ws-port 55559
+```
+
+Useful URLs:
+
+- TV display: `http://server-ip:8080/tv`
+- Phone remote: `http://server-ip:8080/remote`
+- Health check: `http://server-ip:8080/health`
+- Books API: `http://server-ip:8080/api/books`
+
+For production behind `https://reader.example.com`, proxy normal HTTP traffic to port `8080` and websocket traffic at `/ws` to port `55559`. If your public websocket URL is unusual, pass it explicitly:
+
+```
+python3 web_reader.py --public-ws-url wss://reader.example.com/ws
+```
+
+Example nginx shape:
+
+```nginx
+server {
+    server_name reader.example.com;
+
+    location /ws {
+        proxy_pass http://127.0.0.1:55559;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+The Android TV app defaults to `https://reader.example.com/tv`. For local debug builds, override it with:
+
+```
+gradle :app:installDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+```
+
+Run that from `android-tv/`, replacing the IP with your LAN server. Debug builds allow cleartext HTTP for local testing; release builds are intended for HTTPS.
+
 ## How it works
 
-- Python app opens a book fullscreen using Tkinter + PyMuPDF
-- Runs a websocket server (port 55559) that listens for page turn commands
-- Runs a web server (port 8080) that serves a simple remote control page with Right/Left/Shift buttons
-- Open the remote on your phone and tap to turn pages
+Legacy desktop/Raspberry Pi mode:
+
+- `app.py` opens a book fullscreen using Tkinter + PyMuPDF.
+- It runs a websocket server (port `55559`) for page turn commands.
+- It runs a web server (port `8080`) for the simple phone remote.
+
+Android TV / browser mode:
+
+- `web_reader.py` runs the HTTP API, websocket server, spread renderer, and preload cache.
+- `/tv` displays the active spread fullscreen.
+- `/remote` lets a phone choose books and send page commands.
+
+The older Tkinter app still lives in `app.py`. The Android TV path uses `web_reader.py` plus the web UI in `web/`.
 
 ## Setup
 
-You need Python 3 and Tkinter. Tkinter usually comes with Python, but on a Raspberry Pi / Debian you might need:
+You need Python 3. For legacy Tkinter mode, Tkinter usually comes with Python,
+but on a Raspberry Pi / Debian you might need:
 
 ```
 sudo apt install python3-tk
@@ -22,7 +89,7 @@ sudo apt install python3-tk
 Then install the Python dependencies:
 
 ```
-pip install PyMuPDF Pillow pynput websockets
+pip install -r requirements.txt
 ```
 
 If you want SMB support (pulling books from a network share), also:
@@ -31,7 +98,7 @@ If you want SMB support (pulling books from a network share), also:
 pip install smbprotocol
 ```
 
-## Running it
+## Running Legacy Mode
 
 ```
 python app.py
@@ -48,6 +115,7 @@ It'll print the remote control URL (something like `http://yourcomputer.local:80
 ## Notes
 
 - Books get cached in `downloads/` after being pulled from SMB
-- Pre-rendered page images go in `pageImages/`
+- Old pre-rendered page images go in `pageImages/`
+- Web-reader spread caches go in `cache/spreads/`
 - The web remote auto-detects the host, no hardcoded IPs
-- `webapp.py` was an experiment to serve everything via web instead of Tkinter, never finished
+- `webapp.py` was an early experiment; the implemented web reader is now `web_reader.py`

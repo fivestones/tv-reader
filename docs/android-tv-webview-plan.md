@@ -100,3 +100,16 @@ TV WebView app. The planned production URL is `https://reader.example.com`.
 - Open `/tv` and `/remote` in a browser when local browser tooling is available.
 - Verify Android project structure with static inspection locally; full Gradle
   build requires Android Gradle tooling.
+
+## Implementation Status
+
+Implemented in commits:
+
+- `b13ac4f` adds this plan and `AGENTS.md`.
+- `3aca9d2` adds the Python web reader server core, render cache, and preload workers.
+- `26e2ded` adds the `/tv` and `/remote` browser interfaces.
+- `a04075b` adds the Kotlin Android TV WebView wrapper.
+
+The final docs and verification commit updates README/setup guidance and records
+the known local limitation: this workspace does not currently have Gradle or an
+Android SDK available for a full Android build.

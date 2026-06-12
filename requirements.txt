@@ -1,6 +1,7 @@
-fitz==0.0.1.dev2
-Pillow==9.5.0
-Pillow==9.5.0
-pynput==1.7.6
-PySimpleGUI==4.60.5
-websockets==11.0.3
+PyMuPDF>=1.23
+Pillow>=9.5
+pynput>=1.7
+websockets>=11
+
+# Optional SMB support for pulling books from a network share:
+# smbprotocol>=1.10
