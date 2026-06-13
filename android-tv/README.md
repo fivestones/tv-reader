@@ -7,13 +7,12 @@ WebView. Set the default server in the repo `.env` file:
 TV_READER_SERVER_URL=https://reader.example.com
 ```
 
+The TV can also be pointed at a different server later from the in-app settings screen.
+
 ## Build
 
-This machine has the required CLI tooling installed with Homebrew:
-
-- JDK 17: `/opt/homebrew/opt/openjdk@17`
-- Android SDK command-line tools: `/opt/homebrew/share/android-commandlinetools`
-- Gradle wrapper: `./gradlew`
+The project uses the checked-in Gradle wrapper plus JDK 17 and the Android SDK command-line tools.
+`./build-tv.sh` defaults `JAVA_HOME` and `ANDROID_HOME` to the Homebrew paths used on this repo's primary macOS setup; override them in your shell if your toolchain lives elsewhere.
 
 Build from this directory with the helper script:
 
@@ -55,4 +54,4 @@ Run lint:
 - D-pad Right, Select, Enter, Space: next spread
 - D-pad Left, previous media key: previous spread
 - Back or Menu: settings
-- If the page fails to load, Select retries and Back opens server settings.
+- If no server is configured, or if the main reader page fails to load, the app shows the native server picker overlay.

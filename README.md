@@ -1,8 +1,8 @@
 # tv-reader
 
-Displays PDF/MOBI books fullscreen on a TV (or any screen) as a two-page spread, like an open book. You control it from your phone via a simple web remote.
+Displays PDFs, MOBIs, and EPUBs fullscreen on a TV (or any screen) as a two-page spread, like an open book. You control it from your phone via a simple web remote.
 
-Built this to read picture books on the TV with my kids back in 2023. Spruced it up a bit with claude in Feb 2026 when I came across the old code. Intended to run on a Raspberry Pi connected to a TV. Works with PDFs, MOBIs, maybe epubs(?). 
+Built this to read picture books on the TV with my kids back in 2023. Spruced it up a bit in Feb 2026 when I came across the old code again. Intended to run on a Raspberry Pi connected to a TV.
 
 ## Android TV / web mode
 
@@ -13,12 +13,13 @@ The Android TV path is now browser-first:
 - Open `/remote` on a phone to choose books and turn pages.
 - The server renders two-page spreads with PyMuPDF, caches them in `cache/spreads/`, and preloads nearby spreads for fluid page turns.
 
-Configure the public server URL in `.env` when the reader is available through
-a stable hostname:
+Start from [.env.example](/Users/david/development/Old%20Things/tv-reader/.env.example) and set the public server URL in `.env` when the reader is available through a stable hostname:
 
 ```
 TV_READER_SERVER_URL=https://reader.example.com
 ```
+
+`TV_READER_LIBRARY` can also point at one or more book roots separated by your platform path separator.
 
 Run the web reader locally:
 
@@ -93,6 +94,8 @@ Android TV / browser mode:
 - `/remote` lets a phone choose books and send page commands.
 - Settings can switch between two-page spreads and single-page view. EPUB font
   size is shared across TV and remote controls.
+- The Android TV wrapper can also store an on-device server URL so the TV can
+  be pointed at a different reader host without rebuilding the app.
 
 The older Tkinter app still lives in `app.py`. The Android TV path uses `web_reader.py` plus the web UI in `web/`.
 
@@ -109,6 +112,13 @@ Then install the Python dependencies:
 
 ```
 pip install -r requirements.txt
+```
+
+For the browser-first TV reader, `.env` is optional but useful for setting:
+
+```
+TV_READER_SERVER_URL=https://reader.example.com
+TV_READER_LIBRARY=/path/to/books
 ```
 
 If you want SMB support (pulling books from a network share), also:

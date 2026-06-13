@@ -111,22 +111,20 @@ TV WebView app. The production server URL is configured with
 
 ## Implementation Status
 
-Implemented in commits:
+Implemented:
 
-- `b13ac4f` adds this plan and `AGENTS.md`.
-- `3aca9d2` adds the Python web reader server core, render cache, and preload workers.
-- `26e2ded` adds the `/tv` and `/remote` browser interfaces.
-- `a04075b` adds the Kotlin Android TV WebView wrapper.
+- Python web reader server core, render cache, websocket state, and preload workers.
+- `/tv` and `/remote` browser interfaces.
+- Shared settings for spread/single-page mode and EPUB font size.
+- Kotlin Android TV WebView wrapper with native server selection and Back-to-settings behavior.
+- `.env`-driven server URL configuration and Android build-time overrides.
 
-The final docs and verification commit updates README/setup guidance and records
-the known local limitation: this workspace does not currently have Gradle or an
-Android SDK available for a full Android build.
-
-Follow-up implementation installed the Android toolchain, generated a Gradle
-wrapper, added `android-tv/build-tv.sh`, and verified:
+Verified locally:
 
 - `./build-tv.sh :app:assembleDebug`
 - `./build-tv.sh :app:lintDebug`
+- Python syntax checks for the web reader modules.
+- JavaScript syntax checks for the browser UI files.
 
 The debug APK is produced at
 `android-tv/app/build/outputs/apk/debug/app-debug.apk`.
