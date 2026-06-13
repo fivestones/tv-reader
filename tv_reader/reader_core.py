@@ -19,6 +19,10 @@ from PIL import Image, features
 
 BOOK_EXTENSIONS = {".pdf", ".epub", ".mobi", ".xps", ".cbz"}
 DEFAULT_VIEWPORT = (1920, 1080)
+DEFAULT_EPUB_FONT_SIZE = 16
+MIN_EPUB_FONT_SIZE = 10
+MAX_EPUB_FONT_SIZE = 32
+REFLOWABLE_EXTENSIONS = {"epub", "mobi"}
 
 
 def _sha1_short(value: str) -> str:
@@ -41,6 +45,18 @@ def parse_size(value: str | None, default: tuple[int, int] = DEFAULT_VIEWPORT) -
         return width, height
     except (TypeError, ValueError):
         return default
+
+
+def normalize_page_mode(value: object) -> str:
+    return "single" if str(value).strip().lower() in {"single", "single_page", "page"} else "spread"
+
+
+def normalize_font_size(value: object) -> int:
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        size = DEFAULT_EPUB_FONT_SIZE
+    return max(MIN_EPUB_FONT_SIZE, min(MAX_EPUB_FONT_SIZE, size))
 
 
 @dataclass(frozen=True)
@@ -131,24 +147,60 @@ class SpreadRenderer:
         self._key_locks: dict[str, threading.Lock] = {}
         self._key_locks_lock = threading.Lock()
 
-    def spread_url(self, book: BookInfo, left_page: int, width: int, height: int) -> str:
+    def spread_url(
+        self,
+        book: BookInfo,
+        left_page: int,
+        width: int,
+        height: int,
+        page_mode: str,
+        epub_font_size: int,
+    ) -> str:
         page = max(0, int(left_page))
+        variant = self._variant(page_mode, epub_font_size)
         return (
-            f"/spread/{book.id}/{width}x{height}/{page}.{self.image_format}"
+            f"/spread/{book.id}/{width}x{height}/{variant}/{page}.{self.image_format}"
             f"?v={book.fingerprint}"
         )
 
-    def _cache_path(self, book: BookInfo, left_page: int, width: int, height: int) -> Path:
+    def _cache_path(
+        self,
+        book: BookInfo,
+        left_page: int,
+        width: int,
+        height: int,
+        page_mode: str,
+        epub_font_size: int,
+    ) -> Path:
         return (
             self.cache_dir
             / book.id
             / book.fingerprint
             / f"{width}x{height}"
+            / self._variant(page_mode, epub_font_size)
             / f"{left_page}.{self.image_format}"
         )
 
-    def _cache_key(self, book: BookInfo, left_page: int, width: int, height: int) -> str:
-        return f"{book.id}:{book.fingerprint}:{width}x{height}:{left_page}:{self.image_format}"
+    def _cache_key(
+        self,
+        book: BookInfo,
+        left_page: int,
+        width: int,
+        height: int,
+        page_mode: str,
+        epub_font_size: int,
+    ) -> str:
+        variant = self._variant(page_mode, epub_font_size)
+        return f"{book.id}:{book.fingerprint}:{width}x{height}:{variant}:{left_page}:{self.image_format}"
+
+    @staticmethod
+    def _variant(page_mode: str, epub_font_size: int) -> str:
+        return f"{normalize_page_mode(page_mode)}-font-{normalize_font_size(epub_font_size)}"
+
+    def page_count(self, book: BookInfo, width: int, height: int, epub_font_size: int) -> int:
+        with fitz.open(book.path) as doc:
+            self._layout_document(doc, book, width, height, epub_font_size)
+            return doc.page_count
 
     def get_spread_bytes(
         self,
@@ -156,15 +208,17 @@ class SpreadRenderer:
         left_page: int,
         width: int,
         height: int,
+        page_mode: str,
+        epub_font_size: int,
     ) -> tuple[bytes, str]:
-        key = self._cache_key(book, left_page, width, height)
+        key = self._cache_key(book, left_page, width, height, page_mode, epub_font_size)
         with self._memory_lock:
             cached = self._memory.get(key)
             if cached is not None:
                 self._memory.move_to_end(key)
                 return cached, self.content_type
 
-        path = self.ensure_spread(book, left_page, width, height)
+        path = self.ensure_spread(book, left_page, width, height, page_mode, epub_font_size)
         data = path.read_bytes()
 
         with self._memory_lock:
@@ -174,12 +228,20 @@ class SpreadRenderer:
                 self._memory.popitem(last=False)
         return data, self.content_type
 
-    def ensure_spread(self, book: BookInfo, left_page: int, width: int, height: int) -> Path:
-        path = self._cache_path(book, left_page, width, height)
+    def ensure_spread(
+        self,
+        book: BookInfo,
+        left_page: int,
+        width: int,
+        height: int,
+        page_mode: str,
+        epub_font_size: int,
+    ) -> Path:
+        path = self._cache_path(book, left_page, width, height, page_mode, epub_font_size)
         if path.exists():
             return path
 
-        key = self._cache_key(book, left_page, width, height)
+        key = self._cache_key(book, left_page, width, height, page_mode, epub_font_size)
         with self._key_locks_lock:
             lock = self._key_locks.setdefault(key, threading.Lock())
 
@@ -187,7 +249,7 @@ class SpreadRenderer:
             if path.exists():
                 return path
             path.parent.mkdir(parents=True, exist_ok=True)
-            self._render_spread(book, left_page, width, height, path)
+            self._render_spread(book, left_page, width, height, page_mode, epub_font_size, path)
             return path
 
     def _render_spread(
@@ -196,33 +258,44 @@ class SpreadRenderer:
         left_page: int,
         width: int,
         height: int,
+        page_mode: str,
+        epub_font_size: int,
         destination: Path,
     ) -> None:
         with fitz.open(book.path) as doc:
+            self._layout_document(doc, book, width, height, epub_font_size)
             if doc.page_count <= 0:
                 raise ValueError(f"{book.path} has no pages")
 
             left_index = normalize_page(left_page, doc.page_count)
-            right_index = normalize_page(left_index + 1, doc.page_count)
             left = doc[left_index]
-            right = doc[right_index]
             left_rect = left.rect
-            right_rect = right.rect
-            scale = min(
-                width / max(1.0, left_rect.width + right_rect.width),
-                height / max(1.0, max(left_rect.height, right_rect.height)),
-            )
-
-            left_image = self._render_page(left, scale)
-            right_image = self._render_page(right, scale)
+            if normalize_page_mode(page_mode) == "single":
+                scale = min(
+                    width / max(1.0, left_rect.width),
+                    height / max(1.0, left_rect.height),
+                )
+                left_image = self._render_page(left, scale)
+                right_image = None
+            else:
+                right_index = normalize_page(left_index + 1, doc.page_count)
+                right = doc[right_index]
+                right_rect = right.rect
+                scale = min(
+                    width / max(1.0, left_rect.width + right_rect.width),
+                    height / max(1.0, max(left_rect.height, right_rect.height)),
+                )
+                left_image = self._render_page(left, scale)
+                right_image = self._render_page(right, scale)
 
         canvas = Image.new("RGB", (width, height), (0, 0, 0))
-        total_width = left_image.width + right_image.width
+        total_width = left_image.width + (right_image.width if right_image else 0)
         start_x = max(0, (width - total_width) // 2)
         left_y = max(0, (height - left_image.height) // 2)
-        right_y = max(0, (height - right_image.height) // 2)
         canvas.paste(left_image, (start_x, left_y))
-        canvas.paste(right_image, (start_x + left_image.width, right_y))
+        if right_image:
+            right_y = max(0, (height - right_image.height) // 2)
+            canvas.paste(right_image, (start_x + left_image.width, right_y))
 
         temp = destination.with_name(f"{destination.name}.{threading.get_ident()}.tmp")
         if self.image_format == "webp":
@@ -238,6 +311,11 @@ class SpreadRenderer:
         image = Image.open(io.BytesIO(pixmap.tobytes("png")))
         return image.convert("RGB")
 
+    @staticmethod
+    def _layout_document(doc: fitz.Document, book: BookInfo, width: int, height: int, epub_font_size: int) -> None:
+        if book.extension in REFLOWABLE_EXTENSIONS and hasattr(doc, "layout"):
+            doc.layout(width=width, height=height, fontsize=normalize_font_size(epub_font_size))
+
 
 class PreloadManager:
     def __init__(self, renderer: SpreadRenderer, max_workers: int = 2) -> None:
@@ -252,9 +330,11 @@ class PreloadManager:
         left_pages: Iterable[int],
         width: int,
         height: int,
+        page_mode: str,
+        epub_font_size: int,
     ) -> None:
         for left_page in left_pages:
-            key = self.renderer._cache_key(book, left_page, width, height)
+            key = self.renderer._cache_key(book, left_page, width, height, page_mode, epub_font_size)
             with self._lock:
                 if key in self._pending:
                     continue
@@ -265,6 +345,8 @@ class PreloadManager:
                 left_page,
                 width,
                 height,
+                page_mode,
+                epub_font_size,
             )
             future.add_done_callback(lambda _future, cache_key=key: self._clear(cache_key))
 
@@ -292,6 +374,8 @@ class ReaderSession:
         self.current_book: BookInfo | None = None
         self.page_count = 0
         self.current_left_page = 0
+        self.page_mode = "spread"
+        self.epub_font_size = DEFAULT_EPUB_FONT_SIZE
         self.last_error: str | None = None
         self.updated_at = time.time()
 
@@ -310,8 +394,8 @@ class ReaderSession:
         if not book:
             raise KeyError(f"Unknown book id: {book_id}")
 
-        with fitz.open(book.path) as doc:
-            page_count = doc.page_count
+        size = (width or self.default_width, height or self.default_height)
+        page_count = self.renderer.page_count(book, size[0], size[1], self.epub_font_size)
         if page_count <= 0:
             raise ValueError(f"{book.path} has no pages")
 
@@ -322,7 +406,6 @@ class ReaderSession:
             self.last_error = None
             self.updated_at = time.time()
 
-        size = (width or self.default_width, height or self.default_height)
         self.schedule_preload(*size)
         return self.state(*size)
 
@@ -339,10 +422,11 @@ class ReaderSession:
                 self.last_error = "No book is open."
                 return self.state_locked(width or self.default_width, height or self.default_height)
 
+            stride = self.page_stride_locked()
             if normalized in {"right", "next", "arrowright", "select", "space"}:
-                self.current_left_page = normalize_page(self.current_left_page + 2, self.page_count)
+                self.current_left_page = normalize_page(self.current_left_page + stride, self.page_count)
             elif normalized in {"left", "previous", "prev", "arrowleft", "backspace"}:
-                self.current_left_page = normalize_page(self.current_left_page - 2, self.page_count)
+                self.current_left_page = normalize_page(self.current_left_page - stride, self.page_count)
             elif normalized in {"s", "shift"}:
                 self.current_left_page = normalize_page(self.current_left_page + 1, self.page_count)
             elif normalized in {"b", "beginning", "home"}:
@@ -363,6 +447,7 @@ class ReaderSession:
             return self.state_locked(width or self.default_width, height or self.default_height)
 
     def state_locked(self, width: int, height: int) -> dict:
+        settings = self.settings_locked()
         if not self.current_book:
             return {
                 "status": "idle",
@@ -370,15 +455,20 @@ class ReaderSession:
                 "book": None,
                 "page_count": 0,
                 "current_left_page": 0,
-                "right_page": 0,
+                "right_page": None,
                 "spread_url": None,
                 "preload_urls": [],
+                "settings": settings,
                 "last_error": self.last_error,
                 "updated_at": self.updated_at,
             }
 
         preload_pages = self.preload_pages_locked()
-        right_page = normalize_page(self.current_left_page + 1, self.page_count)
+        right_page = (
+            None
+            if self.page_mode == "single"
+            else normalize_page(self.current_left_page + 1, self.page_count)
+        )
         return {
             "status": "ready",
             "book": self.current_book.to_dict(),
@@ -391,11 +481,21 @@ class ReaderSession:
                 self.current_left_page,
                 width,
                 height,
+                self.page_mode,
+                self.epub_font_size,
             ),
             "preload_urls": [
-                self.renderer.spread_url(self.current_book, page, width, height)
+                self.renderer.spread_url(
+                    self.current_book,
+                    page,
+                    width,
+                    height,
+                    self.page_mode,
+                    self.epub_font_size,
+                )
                 for page in preload_pages
             ],
+            "settings": settings,
             "last_error": self.last_error,
             "updated_at": self.updated_at,
         }
@@ -403,14 +503,66 @@ class ReaderSession:
     def page_label_locked(self) -> str:
         if self.page_count <= 0:
             return "0 / 0"
+        if self.page_mode == "single":
+            return f"{self.current_left_page + 1} / {self.page_count}"
         right_page = normalize_page(self.current_left_page + 1, self.page_count)
         return f"{self.current_left_page + 1}-{right_page + 1} / {self.page_count}"
+
+    def page_stride_locked(self) -> int:
+        return 1 if self.page_mode == "single" else 2
+
+    def settings_locked(self) -> dict:
+        return {
+            "page_mode": self.page_mode,
+            "single_page": self.page_mode == "single",
+            "epub_font_size": self.epub_font_size,
+            "epub_font_size_min": MIN_EPUB_FONT_SIZE,
+            "epub_font_size_max": MAX_EPUB_FONT_SIZE,
+        }
+
+    def settings(self) -> dict:
+        with self._lock:
+            return self.settings_locked()
+
+    def update_settings(
+        self,
+        changes: dict,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> dict:
+        if not isinstance(changes, dict):
+            changes = {}
+        size = (width or self.default_width, height or self.default_height)
+        with self._lock:
+            if "single_page" in changes:
+                self.page_mode = "single" if bool(changes["single_page"]) else "spread"
+            if "page_mode" in changes:
+                self.page_mode = normalize_page_mode(changes["page_mode"])
+            if "epub_font_size" in changes:
+                self.epub_font_size = normalize_font_size(changes["epub_font_size"])
+            book = self.current_book
+
+        if book:
+            page_count = self.renderer.page_count(book, size[0], size[1], self.epub_font_size)
+            with self._lock:
+                self.page_count = page_count
+                self.current_left_page = normalize_page(self.current_left_page, page_count)
+                self.last_error = None
+                self.updated_at = time.time()
+        else:
+            with self._lock:
+                self.updated_at = time.time()
+
+        self.schedule_preload(*size)
+        return self.state(*size)
 
     def preload_pages_locked(self) -> list[int]:
         if self.page_count <= 0:
             return []
         pages: list[int] = []
-        for offset in (0, 2, -2, 4, -4):
+        stride = self.page_stride_locked()
+        for offset in (0, stride, -stride, stride * 2, -stride * 2):
             page = normalize_page(self.current_left_page + offset, self.page_count)
             if page not in pages:
                 pages.append(page)
@@ -422,7 +574,16 @@ class ReaderSession:
                 return
             book = self.current_book
             pages = self.preload_pages_locked()
-        self.preload.preload(book, pages, width or self.default_width, height or self.default_height)
+            page_mode = self.page_mode
+            epub_font_size = self.epub_font_size
+        self.preload.preload(
+            book,
+            pages,
+            width or self.default_width,
+            height or self.default_height,
+            page_mode,
+            epub_font_size,
+        )
 
     def get_spread_bytes(
         self,
@@ -430,11 +591,13 @@ class ReaderSession:
         left_page: int,
         width: int,
         height: int,
+        page_mode: str,
+        epub_font_size: int,
     ) -> tuple[bytes, str]:
         book = self.library.get(book_id)
         if not book:
             raise KeyError(f"Unknown book id: {book_id}")
-        return self.renderer.get_spread_bytes(book, left_page, width, height)
+        return self.renderer.get_spread_bytes(book, left_page, width, height, page_mode, epub_font_size)
 
 
 def json_dumps(data: object) -> bytes:

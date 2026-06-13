@@ -105,6 +105,28 @@
       return payload.state;
     }
 
+    async settings() {
+      const response = await fetch("/api/settings", { cache: "no-store" });
+      const payload = await response.json();
+      return payload.settings || {};
+    }
+
+    async updateSettings(settings) {
+      if (this.send({ type: "settings", settings })) {
+        return null;
+      }
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings, size: this.renderSize() }),
+      });
+      const payload = await response.json();
+      if (payload.state) {
+        this.onState(payload.state);
+      }
+      return payload.settings || (payload.state && payload.state.settings) || {};
+    }
+
     async command(command) {
       if (this.send({ type: "command", command })) {
         return null;

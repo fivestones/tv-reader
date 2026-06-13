@@ -9,9 +9,16 @@ Built this to read picture books on the TV with my kids back in 2023. Spruced it
 The Android TV path is now browser-first:
 
 - Run the Python web reader on a LAN server.
-- Open `https://reader.example.com/tv` on the TV, or use the Android TV WebView wrapper in `android-tv/`.
-- Open `https://reader.example.com/remote` on a phone to choose books and turn pages.
+- Open `/tv` on the TV, or use the Android TV WebView wrapper in `android-tv/`.
+- Open `/remote` on a phone to choose books and turn pages.
 - The server renders two-page spreads with PyMuPDF, caches them in `cache/spreads/`, and preloads nearby spreads for fluid page turns.
+
+Configure the public server URL in `.env` when the reader is available through
+a stable hostname:
+
+```
+TV_READER_SERVER_URL=https://reader.example.com
+```
 
 Run the web reader locally:
 
@@ -26,7 +33,9 @@ Useful URLs:
 - Health check: `http://server-ip:8080/health`
 - Books API: `http://server-ip:8080/api/books`
 
-For production behind `https://reader.example.com`, proxy normal HTTP traffic to port `8080` and websocket traffic at `/ws` to port `55559`. If your public websocket URL is unusual, pass it explicitly:
+For production behind a public hostname, proxy normal HTTP traffic to port
+`8080` and websocket traffic at `/ws` to port `55559`. If your public websocket
+URL is unusual, pass it explicitly:
 
 ```
 python3 web_reader.py --public-ws-url wss://reader.example.com/ws
@@ -53,7 +62,9 @@ server {
 }
 ```
 
-The Android TV app defaults to `https://reader.example.com/tv`. For local debug builds, override it with:
+The Android TV app reads its default server from `TV_READER_SERVER_URL` in the
+repo `.env` file, or you can choose a server from the app settings screen.
+Build it from `android-tv/`:
 
 ```
 ./build-tv.sh
@@ -62,7 +73,7 @@ The Android TV app defaults to `https://reader.example.com/tv`. For local debug 
 For local debug builds, override the URL with:
 
 ```
-./build-tv.sh :app:installDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+./build-tv.sh :app:installDebug -PtvReaderServerUrl=http://192.168.1.50:8080
 ```
 
 Replace the IP with your LAN server. Debug builds allow cleartext HTTP for local testing; release builds are intended for HTTPS.
@@ -80,6 +91,8 @@ Android TV / browser mode:
 - `web_reader.py` runs the HTTP API, websocket server, spread renderer, and preload cache.
 - `/tv` displays the active spread fullscreen.
 - `/remote` lets a phone choose books and send page commands.
+- Settings can switch between two-page spreads and single-page view. EPUB font
+  size is shared across TV and remote controls.
 
 The older Tkinter app still lives in `app.py`. The Android TV path uses `web_reader.py` plus the web UI in `web/`.
 
@@ -117,6 +130,7 @@ It'll print the remote control URL (something like `http://yourcomputer.local:80
 - **Right/Left arrows** (keyboard) or **Right/Left buttons** (web remote): turn pages
 - **s**: shift page alignment by one (if the spread is off by a page)
 - **b**: go back to the beginning
+- **Back/Menu** in the Android TV app: open settings
 
 ## Notes
 

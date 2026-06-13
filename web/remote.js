@@ -5,14 +5,19 @@
   const bookList = document.querySelector("#book-list");
   const filter = document.querySelector("#book-filter");
   const refresh = document.querySelector("#refresh-books");
+  const settingsButton = document.querySelector("#settings-button");
   let books = [];
   let activeBookId = null;
+  let settingsOverlay = null;
 
   function setConnection(status) {
     connection.textContent = status === "online" ? "Connected to TV" : status === "offline" ? "Reconnecting..." : "Connecting...";
   }
 
   function updateState(state) {
+    if (settingsOverlay) {
+      settingsOverlay.setState(state);
+    }
     if (!state || state.status !== "ready") {
       activeBookId = null;
       bookTitle.textContent = "No book open";
@@ -30,6 +35,11 @@
   const client = new window.ReaderClient({
     onState: updateState,
     onConnection: setConnection,
+  });
+
+  settingsOverlay = new window.ReaderSettingsOverlay({
+    client,
+    trigger: settingsButton,
   });
 
   async function loadBooks() {

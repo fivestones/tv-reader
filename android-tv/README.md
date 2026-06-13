@@ -1,10 +1,10 @@
 # TV Reader Android TV Wrapper
 
 This is a small Kotlin Android TV app that opens the web reader in a fullscreen
-WebView. It defaults to:
+WebView. Set the default server in the repo `.env` file:
 
 ```
-https://reader.example.com/tv
+TV_READER_SERVER_URL=https://reader.example.com
 ```
 
 ## Build
@@ -29,20 +29,20 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## Local Server Override
 
-For LAN testing, override the URL at build time:
+For LAN testing, override the server at build time:
 
 ```
-./build-tv.sh :app:assembleDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+./build-tv.sh :app:assembleDebug -PtvReaderServerUrl=http://192.168.1.50:8080
 ```
 
 Install a debug build to a connected Android TV device:
 
 ```
-./build-tv.sh :app:installDebug -PtvReaderUrl=http://192.168.1.50:8080/tv
+./build-tv.sh :app:installDebug -PtvReaderServerUrl=http://192.168.1.50:8080
 ```
 
 Debug builds allow cleartext HTTP so local LAN URLs work. Release builds should
-use HTTPS, which matches the production `https://reader.example.com/tv` default.
+use HTTPS.
 
 Run lint:
 
@@ -53,5 +53,6 @@ Run lint:
 ## Controls
 
 - D-pad Right, Select, Enter, Space: next spread
-- D-pad Left, Back, previous media key: previous spread
-- If the page fails to load, Select retries.
+- D-pad Left, previous media key: previous spread
+- Back or Menu: settings
+- If the page fails to load, Select retries and Back opens server settings.

@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,7 +9,24 @@ fun String.asBuildConfigString(): String {
     return "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 }
 
-val tvReaderUrl = providers.gradleProperty("tvReaderUrl").orElse("https://reader.example.com/tv")
+fun loadEnvFile(file: File): Map<String, String> {
+    if (!file.exists()) {
+        return emptyMap()
+    }
+    return file.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+        .associate {
+            val key = it.substringBefore("=").trim()
+            val value = it.substringAfter("=").trim().trim('"', '\'')
+            key to value
+        }
+}
+
+val repoEnv = loadEnvFile(rootProject.layout.projectDirectory.file("../.env").asFile)
+val tvReaderServerUrl = providers.gradleProperty("tvReaderServerUrl")
+    .orElse(providers.environmentVariable("TV_READER_SERVER_URL"))
+    .orElse(repoEnv["TV_READER_SERVER_URL"] ?: repoEnv["TV_READER_URL"] ?: "")
 
 android {
     namespace = "im.dat.tvreader"
@@ -19,7 +38,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "TV_READER_URL", tvReaderUrl.get().asBuildConfigString())
+        buildConfigField("String", "TV_READER_SERVER_URL", tvReaderServerUrl.get().asBuildConfigString())
     }
 
     buildFeatures {

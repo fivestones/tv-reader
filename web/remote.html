@@ -9,8 +9,13 @@
   <body class="remote-page">
     <main class="remote-shell">
       <header class="remote-header">
-        <p class="eyebrow">TV Reader</p>
-        <h1>Story remote</h1>
+        <div class="remote-title-row">
+          <div>
+            <p class="eyebrow">TV Reader</p>
+            <h1>Story remote</h1>
+          </div>
+          <button id="settings-button" class="small-button" type="button">Settings</button>
+        </div>
         <p id="connection" class="remote-connection">Connecting...</p>
       </header>
 
@@ -39,7 +44,8 @@
         <div id="book-list" class="book-list" aria-live="polite"></div>
       </section>
     </main>
-    <script src="/assets/reader-client.js?v=2"></script>
-    <script src="/assets/remote.js?v=2"></script>
+    <script src="/assets/reader-client.js?v=3"></script>
+    <script src="/assets/settings.js?v=3"></script>
+    <script src="/assets/remote.js?v=3"></script>
   </body>
 </html>

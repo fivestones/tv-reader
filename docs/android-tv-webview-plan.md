@@ -4,14 +4,16 @@
 
 Make tv-reader usable on Android TV by moving the display surface to a browser
 page served from the LAN server and wrapping that page in a small Kotlin Android
-TV WebView app. The planned production URL is `https://reader.example.com`.
+TV WebView app. The production server URL is configured with
+`TV_READER_SERVER_URL` in `.env`.
 
 ## Architecture
 
 - Python runs on the LAN server and owns book discovery, book state, PDF
   rendering, spread caching, and websocket state broadcasts.
-- Android TV opens `https://reader.example.com/tv` in a fullscreen WebView.
-- Phones open `https://reader.example.com/remote` for book selection and page controls.
+- Android TV opens the configured server's `/tv` route in a fullscreen WebView.
+- Phones open the configured server's `/remote` route for book selection and
+  page controls.
 - Browser clients connect to `/ws`; the server broadcasts state changes and
   accepts commands such as `right`, `left`, `shift`, `beginning`, and `open`.
 - Rendered spreads are served as static image responses from `/spread/...`.
@@ -42,6 +44,8 @@ TV WebView app. The planned production URL is `https://reader.example.com`.
   candidates so the TV browser can also warm its image cache.
 - Render cache keys include book identity, page number, viewport size, and
   spread mode so stale images are avoided when settings change.
+- Server URL defaults come from `.env` through `TV_READER_SERVER_URL`; the
+  concrete URL must not be hardcoded in source-controlled files.
 
 ## TV Browser UI
 
@@ -53,6 +57,8 @@ TV WebView app. The planned production URL is `https://reader.example.com`.
   - left/backspace: previous spread
   - `s`: shift page alignment
   - `b`: beginning
+- It exposes a settings overlay for single-page mode and EPUB font size. When
+  hosted inside the Android TV app, the same overlay can choose the server URL.
 - It shows a calm waiting/error state when no book is open or the server is
   unreachable.
 
@@ -62,14 +68,15 @@ TV WebView app. The planned production URL is `https://reader.example.com`.
 - It can open a book, turn left/right, shift spread alignment, and go to the
   beginning.
 - It displays current book title and page progress from websocket state.
+- It has a settings button for options that apply to both phone and TV clients.
 - It uses large touch targets and avoids hardcoded hostnames.
 
 ## Android TV Kotlin WebView App
 
 - Add a small Gradle/Kotlin project under `android-tv/`.
-- The TV activity loads `https://reader.example.com/tv` by default.
-- The URL can be overridden at build time with a Gradle property for local
-  testing.
+- The TV activity loads the configured server's `/tv` route by default.
+- The server URL can be provided by `.env`, overridden at build time with a
+  Gradle property, or changed later from the TV settings overlay.
 - Manifest requirements:
   - `android.permission.INTERNET`
   - `CATEGORY_LEANBACK_LAUNCHER`
@@ -82,6 +89,7 @@ TV WebView app. The planned production URL is `https://reader.example.com`.
   - fullscreen, no overscroll chrome
 - Native key handling should forward D-pad left/right/select to JavaScript so
   page turning is reliable even if WebView focus changes.
+- Back opens settings instead of turning pages left.
 - Production uses HTTPS. Debug builds may allow HTTP LAN URLs for testing.
 
 ## Commit Steps

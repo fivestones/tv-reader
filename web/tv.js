@@ -4,10 +4,12 @@
   const hudTitle = document.querySelector("#hud-title");
   const hudPages = document.querySelector("#hud-pages");
   const connection = document.querySelector("#connection");
+  const settingsButton = document.querySelector("#tv-settings-button");
   const images = [document.querySelector("#spread-a"), document.querySelector("#spread-b")];
   let visibleIndex = 0;
   let currentUrl = "";
   const preloaded = new Set();
+  let settingsOverlay = null;
 
   function absoluteUrl(url) {
     return new URL(url, window.location.href).href;
@@ -48,6 +50,9 @@
   }
 
   function updateState(state) {
+    if (settingsOverlay) {
+      settingsOverlay.setState(state);
+    }
     if (!state || state.status !== "ready") {
       emptyState.classList.remove("hidden");
       hud.classList.add("hidden");
@@ -69,13 +74,23 @@
     onConnection: setConnection,
   });
 
+  settingsOverlay = new window.ReaderSettingsOverlay({
+    client,
+    showServer: true,
+    trigger: settingsButton,
+  });
+
   function command(name) {
     client.command(name);
   }
 
   window.tvReaderCommand = command;
+  window.tvReaderOpenSettings = () => settingsOverlay.open();
 
   window.addEventListener("keydown", (event) => {
+    if (!settingsOverlay.overlay.classList.contains("hidden")) {
+      return;
+    }
     if (["ArrowRight", " ", "Enter"].includes(event.key)) {
       event.preventDefault();
       command("right");
@@ -90,6 +105,9 @@
   });
 
   window.addEventListener("click", (event) => {
+    if (event.target.closest(".settings-overlay")) {
+      return;
+    }
     const rightHalf = event.clientX > window.innerWidth / 2;
     command(rightHalf ? "right" : "left");
   });

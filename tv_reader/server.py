@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import socket
 import threading
 from http import HTTPStatus
@@ -13,6 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 import websockets
 
+from .config import configured_server_url, load_dotenv, public_ws_url
 from .reader_core import (
     BookLibrary,
     PreloadManager,
@@ -65,6 +67,8 @@ class ReaderRuntime:
             return self.session.command(str(data.get("command", "")), width=width, height=height)
         if message_type == "open":
             return self.session.open_book(str(data.get("book_id", "")), width=width, height=height)
+        if message_type == "settings":
+            return self.session.update_settings(data.get("settings", {}), width=width, height=height)
         if message_type == "state":
             return self.session.state(width, height)
         return self.session.state(width, height)
@@ -125,6 +129,9 @@ class ReaderHTTPRequestHandler(BaseHTTPRequestHandler):
                 width, height = parse_size(query.get("size", [None])[0])
                 self.send_json({"state": self.server.runtime.session.state(width, height)})
                 return
+            if parsed.path == "/api/settings":
+                self.send_json({"settings": self.server.runtime.session.settings()})
+                return
             if parsed.path == "/api/config":
                 self.send_json({"config": self.server.runtime.config})
                 return
@@ -171,16 +178,33 @@ class ReaderHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.server.runtime.notify_state_changed(state)
                 self.send_json({"state": state})
                 return
+            if parsed.path == "/api/settings":
+                state = self.server.runtime.session.update_settings(
+                    payload.get("settings", {}),
+                    width=width,
+                    height=height,
+                )
+                self.server.runtime.notify_state_changed(state)
+                self.send_json({"state": state, "settings": state["settings"]})
+                return
             self.send_error(HTTPStatus.NOT_FOUND)
         except Exception as exc:
             self.send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
 
     def send_spread(self, path: str) -> None:
         parts = path.strip("/").split("/")
-        if len(parts) != 4:
+        if len(parts) == 5:
+            _, book_id, size, variant, filename = parts
+            variant_parts = variant.split("-font-", 1)
+            page_mode = variant_parts[0]
+            epub_font_size = int(variant_parts[1]) if len(variant_parts) == 2 else 16
+        elif len(parts) == 4:
+            _, book_id, size, filename = parts
+            page_mode = self.server.runtime.session.settings()["page_mode"]
+            epub_font_size = self.server.runtime.session.settings()["epub_font_size"]
+        else:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
-        _, book_id, size, filename = parts
         width, height = parse_size(size)
         left_text = filename.split(".", 1)[0]
         data, content_type = self.server.runtime.session.get_spread_bytes(
@@ -188,6 +212,8 @@ class ReaderHTTPRequestHandler(BaseHTTPRequestHandler):
             int(left_text),
             width,
             height,
+            page_mode,
+            epub_font_size,
         )
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
@@ -267,10 +293,21 @@ async def start_websocket_server(runtime: ReaderRuntime, host: str, port: int) -
 
 
 def parse_args() -> argparse.Namespace:
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Run the tv-reader web server.")
     parser.add_argument("--host", default="0.0.0.0", help="Host for HTTP and websocket servers.")
-    parser.add_argument("--http-port", type=int, default=8080, help="HTTP server port.")
-    parser.add_argument("--ws-port", type=int, default=55559, help="Websocket server port.")
+    parser.add_argument(
+        "--http-port",
+        type=int,
+        default=int(os.environ.get("TV_READER_HTTP_PORT", "8080")),
+        help="HTTP server port.",
+    )
+    parser.add_argument(
+        "--ws-port",
+        type=int,
+        default=int(os.environ.get("TV_READER_WS_PORT", "55559")),
+        help="Websocket server port.",
+    )
     parser.add_argument(
         "--library",
         action="append",
@@ -281,20 +318,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=1080, help="Default rendered spread height.")
     parser.add_argument(
         "--public-ws-url",
-        help="Public websocket URL. Defaults to wss://host/ws on HTTPS or ws://host:ws-port locally.",
+        default=os.environ.get("TV_READER_PUBLIC_WS_URL"),
+        help="Public websocket URL. Defaults to TV_READER_SERVER_URL with /ws when configured.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    server_url = configured_server_url()
+    public_ws = args.public_ws_url or public_ws_url(server_url)
     session = build_session(args)
     runtime = ReaderRuntime(
         session,
         {
             "render_size": f"{args.width}x{args.height}",
             "ws_port": args.ws_port,
-            "public_ws_url": args.public_ws_url,
+            "server_url": server_url,
+            "public_ws_url": public_ws,
         },
     )
     start_http_server(runtime, args.host, args.http_port)
@@ -303,9 +344,13 @@ def main() -> None:
     print("TV reader server is running.")
     print(f"  HTTP:      http://{ip}:{args.http_port}")
     print(f"  WebSocket: ws://{ip}:{args.ws_port}")
-    print("  Production reverse proxy target:")
-    print(f"    https://reader.example.com -> http://127.0.0.1:{args.http_port}")
-    print(f"    wss://reader.example.com/ws -> ws://127.0.0.1:{args.ws_port}")
+    if server_url:
+        print("  Configured public server:")
+        print(f"    {server_url} -> http://127.0.0.1:{args.http_port}")
+        if public_ws:
+            print(f"    {public_ws} -> ws://127.0.0.1:{args.ws_port}")
+    else:
+        print("  Set TV_READER_SERVER_URL in .env to advertise a public server URL.")
 
     asyncio.run(start_websocket_server(runtime, args.host, args.ws_port))
 

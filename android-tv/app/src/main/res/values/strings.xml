@@ -2,5 +2,10 @@
 <resources>
     <string name="app_name">TV Reader</string>
     <string name="load_error">The reader page could not be loaded.</string>
-    <string name="error_template">Could not load %1$s\n\n%2$s\n\nPress Select to retry.</string>
+    <string name="error_template">Could not load %1$s\n\n%2$s\n\nPress Select to retry or Back for settings.</string>
+    <string name="server_settings_title">Reader server</string>
+    <string name="server_settings_body">Enter the server that hosts the TV reader.</string>
+    <string name="server_url_hint">https://reader.example.com</string>
+    <string name="server_save_button">Load server</string>
+    <string name="server_url_required">Enter a server URL.</string>
 </resources>
